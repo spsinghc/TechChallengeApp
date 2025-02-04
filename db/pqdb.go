@@ -178,6 +178,52 @@ func (p Pqdb) AddTask(cfg Config, task model.Task) (model.Task, error) {
 	return task, nil
 }
 
+func (p Pqdb) GetTask(cfg Config, task model.Task) (model.Task, error) {
+	dbInfo := p.getDbInfo(cfg)
+
+	db, err := sql.Open("postgres", dbInfo)
+
+	if err != nil {
+		return task, err
+	}
+
+	defer db.Close()
+
+	err = db.QueryRow("SELECT * FROM tasks WHERE id=$1", task.ID).Scan(&task.ID, &task.Complete, &task.Priority, &task.Title)
+
+	if err != nil {
+		return task, err
+	}
+
+	return task, nil
+}
+
+func (p Pqdb) UpdateTask(cfg Config, task model.Task) (model.Task, error) {
+	dbInfo := p.getDbInfo(cfg)
+
+	db, err := sql.Open("postgres", dbInfo)
+
+	if err != nil {
+		return task, err
+	}
+
+	defer db.Close()
+
+	stmt, err := db.Prepare("UPDATE tasks SET completed=$1, priority=$2, title=$3 WHERE id=$4")
+
+	if err != nil {
+		return task, err
+	}
+
+	_, err = stmt.Exec(task.Complete, task.Priority, task.Title, task.ID)
+
+	if err != nil {
+		return task, err
+	}
+
+	return task, nil
+}
+
 func (p Pqdb) DeleteTask(cfg Config, task model.Task) error {
 	dbInfo := p.getDbInfo(cfg)
 

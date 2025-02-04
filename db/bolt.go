@@ -129,6 +129,56 @@ func (b Boltdb) AddTask(cfg Config, task model.Task) (model.Task, error) {
 	return task, nil
 }
 
+func (b Boltdb) GetTask(cfg Config, task model.Task) (model.Task, error) {
+	database, err := bolt.Open(cfg.DbName, 0644, nil)
+	if err != nil {
+		return task, err
+	}
+	defer database.Close()
+
+	var t model.Task
+	err = database.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(cfg.DbUser))
+		bytes := b.Get([]byte(fmt.Sprint(task.ID)))
+		if bytes == nil {
+			return bolt.ErrBucketNotFound
+		}
+		json.Unmarshal(bytes, &t)
+		return nil
+	})
+	if err != nil {
+		return t, err
+	}
+
+	return t, nil
+}
+
+func (b Boltdb) UpdateTask(cfg Config, task model.Task) (model.Task, error) {
+	database, err := bolt.Open(cfg.DbName, 0644, nil)
+	if err != nil {
+		return task, err
+	}
+	defer database.Close()
+
+	err = database.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(cfg.DbUser))
+		bytes, err := json.Marshal(task)
+		if err != nil {
+			return err
+		}
+		err = b.Put([]byte(fmt.Sprint(task.ID)), bytes)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return task, err
+	}
+
+	return task, nil
+}
+
 func (b Boltdb) DeleteTask(cfg Config, task model.Task) error {
 	database, err := bolt.Open(cfg.DbName, 0644, nil)
 	if err != nil {

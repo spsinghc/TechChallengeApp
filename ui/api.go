@@ -164,8 +164,110 @@ func deleteTask(cfg Config) http.Handler {
 	})
 }
 
+// swagger:route GET /api/task/{id}/ getTask
+//
+// Retrieve a task identified by ID
+//
+//	Produces:
+//	  - application/json
+//
+//	Responses:
+//	  200: aTask
+//	  404:
+//	  500:
+func getTask(cfg Config) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+
+		id, err := strconv.Atoi(vars["id"])
+
+		if err != nil {
+			log.Println(err)
+			http.Error(w, err.Error(), 500)
+			return
+		}
+
+		db := db.GetDatabase(cfg.DB)
+
+		task, err := db.GetTask(cfg.DB, model.Task{ID: id})
+
+		if err != nil {
+			log.Println(err)
+			http.Error(w, fmt.Sprintf("Task with ID %d not found", id), 404)
+			return
+		}
+
+		js, _ := json.Marshal(task)
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, string(js))
+	})
+}
+
+// swagger:route PUT /api/task/{id}/ updateTask
+//
+// Update a task identified by ID and returns updated task
+//
+//	Produces:
+//	  - application/json
+//
+//	Responses:
+//	  200: aTask
+//	  400:
+//	  404:
+//	  500:
+func updateTask(cfg Config) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		id, err := strconv.Atoi(vars["id"])
+
+		if err != nil {
+			log.Println(err)
+			http.Error(w, err.Error(), 400)
+			return
+		}
+
+		db := db.GetDatabase(cfg.DB)
+
+		// Find the task by ID
+		dbTask, err := db.GetTask(cfg.DB, model.Task{ID: id})
+		if err != nil {
+			log.Println(err)
+			http.Error(w, fmt.Sprintf("Task with ID %d not found", id), 404)
+			return
+		}
+
+		var task model.Task
+		// Decode the request body into the task model
+		decoder := json.NewDecoder(r.Body)
+		err = decoder.Decode(&task)
+		if err != nil {
+			log.Println(err)
+			http.Error(w, err.Error(), 400)
+			return
+		}
+
+		dbTask.Title = task.Title
+		dbTask.Priority = task.Priority
+		dbTask.Complete = task.Complete
+
+		// Update the task in the database
+		updatedTask, err := db.UpdateTask(cfg.DB, dbTask)
+		if err != nil {
+			log.Println(err)
+			http.Error(w, err.Error(), 500)
+			return
+		}
+
+		js, _ := json.Marshal(updatedTask)
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, string(js))
+	})
+}
+
 func apiHandler(cfg Config, router *mux.Router) {
 	router.Handle("/task/{id:[0-9]+}/", deleteTask(cfg)).Methods("DELETE")
 	router.Handle("/task/", getTasks(cfg)).Methods("GET")
 	router.Handle("/task/", addTask(cfg)).Methods("POST")
+	router.Handle("/task/{id:[0-9]+}/", getTask(cfg)).Methods("GET")
+	router.Handle("/task/{id:[0-9]+}/", updateTask(cfg)).Methods("PUT")
 }
